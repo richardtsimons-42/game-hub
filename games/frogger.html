@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>Modern Frogger</title>
+<meta name="description" content="A modern Frogger clone with stunning graphics, sound effects, and mobile controls!">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;overflow:hidden;touch-action:none;user-select:none}
+
+/* Header UI */
+#ui{display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap;justify-content:center;width:100%;max-width:600px;padding:0 8px}
+.stat{color:#e4e4e7;font-size:14px;font-weight:600;background:rgba(255,255,255,0.06);padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:6px}
+.stat .icon{font-size:16px}
+.stat span{color:#818cf8;font-weight:700}
+
+/* Canvas container */
+#canvas-wrap{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 0 60px rgba(99,102,241,0.25),0 0 120px rgba(99,102,241,0.1)}
+canvas{display:block;max-width:95vw;max-height:65vh}
+
+/* Overlay screens */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(12px);animation:fadeIn 0.3s ease}
+.overlay.hidden{display:none}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+.overlay h1{font-size:clamp(32px,8vw,48px);color:#e4e4e7;margin-bottom:8px;text-shadow:0 0 30px rgba(99,102,241,0.5)}
+.overlay h2{font-size:clamp(20px,5vw,28px);color:#a1a1aa;margin-bottom:16px;font-weight:400}
+.overlay p{color:#71717a;margin-bottom:8px;font-size:15px;text-align:center;max-width:320px;line-height:1.5}
+.overlay .score-display{font-size:36px;color:#818cf8;font-weight:700;margin:16px 0;text-shadow:0 0 20px rgba(129,140,248,0.5)}
+
+.overlay .btn{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;padding:16px 40px;border-radius:14px;font-size:18px;font-weight:600;cursor:pointer;box-shadow:0 4px 24px rgba(99,102,241,0.4);transition:all 0.2s;margin:8px}
+.overlay .btn:hover{transform:scale(1.05);box-shadow:0 6px 32px rgba(99,102,241,0.6)}
+.overlay .btn:active{transform:scale(0.98)}
+.overlay .btn.secondary{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2)}
+.overlay .btn.secondary:hover{background:rgba(255,255,255,0.15)}
+
+/* Mobile controls */
+#mobile-controls{display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:50;gap:6px}
+#dpad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(2,64px);gap:6px}
+.ctrl-btn{width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.12);color:#e4e4e7;font-size:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:all 0.15s}
+.ctrl-btn:active{background:rgba(99,102,241,0.3);border-color:rgba(99,102,241,0.5);transform:scale(0.92)}
+.ctrl-btn:disabled{opacity:0.3;pointer-events:none}
+#dpad .ctrl-btn:nth-child(1){grid-column:2;grid-row:1}
+#dpad .ctrl-btn:nth-child(2){grid-column:1;grid-row:2}
+#dpad .ctrl-btn:nth-child(3){grid-column:2;grid-row:2}
+#dpad .ctrl-btn:nth-child(4){grid-column:3;grid-row:2}
+
+@media(max-width:768px){
+  #mobile-controls{display:flex}
+  canvas{max-width:100vw;max-height:55vh}
+  #ui{gap:8px;margin-bottom:8px}
+  .stat{font-size:12px;padding:4px 10px}
+}
+
+@media(max-width:480px){
+  #dpad{grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px)}
+  .ctrl-btn{width:56px;height:56px;font-size:24px}
+}
+
+/* Animations */
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes glow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+.pulse{animation:pulse 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="stat"><span class="icon">⭐</span><span id="score">0</span></div>
+  <div class="stat"><span class="icon">❤️</span><span id="lives">3</span></div>
+  <div class="stat"><span class="icon">🏆</span>Level <span id="level">1</span></div>
+  <div class="stat"><span class="icon">🏅</span>Best <span id="best">0</span></div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="game"></canvas>
+</div>
+
+<div id="mobile-controls">
+  <div id="dpad">
+    <div class="ctrl-btn" ontouchstart="handleInput(0,-1)" onclick="handleInput(0,-1)">▲</div>
+    <div class="ctrl-btn" ontouchstart="handleInput(-1,0)" onclick="handleInput(-1,0)">◀</div>
+    <div class="ctrl-btn" ontouchstart="handleInput(0,1)" onclick="handleInput(0,1)">▼</div>
+    <div class="ctrl-btn" ontouchstart="handleInput(1,0)" onclick="handleInput(1,0)">▶</div>
+  </div>
+</div>
+
+<!-- Start Screen -->
+<div class="overlay" id="startScreen">
+  <h1>🐸 Modern Frogger</h1>
+  <h2>Cross the road. Ride the river. Survive.</h2>
+  <p>Use arrow keys, WASD, or the on-screen buttons to move.</p>
+  <p>Cross roads safely with cars and trucks, then ride logs across the river to reach home.</p>
+  <button class="btn pulse" onclick="startGame()">▶ Play Game</button>
+  <button class="btn secondary" onclick="toggleSound()">🔊 Sound: ON</button>
+</div>
+
+<!-- Game Over Screen -->
+<div class="overlay hidden" id="gameOverScreen">
+  <h1>💀 Game Over</h1>
+  <div class="score-display" id="finalScore">0</div>
+  <p id="gameOverMsg">Better luck next time!</p>
+  <button class="btn" onclick="startGame()">🔄 Play Again</button>
+  <button class="btn secondary" onclick="showStart()">🏠 Menu</button>
+</div>
+
+<!-- Level Complete Screen -->
+<div class="overlay hidden" id="levelScreen">
+  <h1>🎉 Level Complete!</h1>
+  <div class="score-display" id="levelScore">0</div>
+  <p>Get 5 frogs home to advance!</p>
+  <button class="btn" onclick="nextLevel()">Next Level ▶</button>
+</div>
+
+<script>
+// ===== AUDIO ENGINE =====
+const AudioEngine = {
+  ctx: null,
+  enabled: true,
+  
+  init() {
+    if (this.ctx) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  },
+  
+  play(type) {
+    if (!this.enabled || !this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    
+    switch(type) {
+      case 'jump':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+        break;
+        
+      case 'die':
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.4);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+        break;
+        
+      case 'home':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523, now);
+        osc.frequency.setValueAtTime(659, now + 0.1);
+        osc.frequency.setValueAtTime(784, now + 0.2);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+        break;
+        
+      case 'levelup':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523, now);
+        osc.frequency.setValueAtTime(659, now + 0.15);
+        osc.frequency.setValueAtTime(784, now + 0.3);
+        osc.frequency.setValueAtTime(1047, now + 0.45);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+        osc.start(now);
+        osc.stop(now + 0.7);
+        break;
+        
+      case 'splash':
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+        break;
+        
+      case 'powerup':
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+        break;
+    }
+  },
+  
+  toggle() {
+    this.enabled = !this.enabled;
+    return this.enabled;
+  }
+};
+
+// ===== GAME SETUP =====
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const COLS = 11, ROWS = 13, CELL = 48;
+canvas.width = COLS * CELL;
+canvas.height = ROWS * CELL;
+
+// Game state
+let score = 0, lives = 3, level = 1, gameRunning = false;
+let bestScore = parseInt(localStorage.getItem('frogger_best') || '0');
+let player, lanes = [], homeSlots = [];
+let particles = [], powerups = [];
+let gameTime = 0;
+let keys = {};
+let animFrame;
+
+window.addEventListener('keydown', e => { keys[e.key] = true; e.preventDefault(); });
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+// ===== PARTICLE SYSTEM =====
+class Particle {
+  constructor(x, y, color, vx, vy, life, size) {
+    this.x = x; this.y = y; this.color = color;
+    this.vx = vx; this.vy = vy; this.life = life;
+    this.maxLife = life; this.size = size;
+  }
+  update() {
+    this.x += this.vx; this.y += this.vy;
+    this.vy += 0.1; this.life--;
+  }
+  draw() {
+    const alpha = this.life / this.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(
+      x, y, color,
+      (Math.random() - 0.5) * 6,
+      (Math.random() - 0.5) * 6 - 2,
+      30 + Math.random() * 20,
+      2 + Math.random() * 3
+    ));
+  }
+}
+
+// ===== LANE SETUP =====
+function initLanes() {
+  lanes = [];
+  for (let r = 0; r < 3; r++) lanes.push({ type: 'home', speed: 0 });
+  
+  // Road lanes (rows 3-6)
+  for (let r = 3; r < 7; r++) {
+    const speed = (r % 2 === 0 ? 1 : -1) * (0.8 + level * 0.25);
+    const count = 3 + Math.floor(level / 2);
+    const vehicles = [];
+    for (let i = 0; i < count; i++) {
+      vehicles.push({
+        x: i * (COLS / count),
+        w: 1.3 + (r >= 5 ? 0.5 : 0),
+        color: ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'][i % 4],
+        type: r >= 5 ? 'truck' : 'car'
+      });
+    }
+    lanes.push({ type: 'road', speed, vehicles });
+  }
+  
+  // Water lanes (rows 7-9) - safer
+  for (let r = 7; r < 10; r++) {
+    const speed = (r % 2 === 0 ? 1 : -1) * (1.0 + level * 0.2);
+    const count = 2 + Math.floor(level / 3);
+    const logs = [];
+    for (let i = 0; i < count; i++) {
+      logs.push({
+        x: i * (COLS / count),
+        w: 2.2 + Math.random() * 0.8,
+        color: ['#92400e', '#78350f', '#a16207'][i % 3]
+      });
+    }
+    lanes.push({ type: 'water', logs, safe: true });
+  }
+  
+  // River lanes (rows 10-12) - harder
+  for (let r = 10; r < 13; r++) {
+    const speed = (r % 2 === 0 ? 1 : -1) * (1.3 + level * 0.2);
+    const count = 2 + Math.floor(level / 2);
+    const logs = [];
+    for (let i = 0; i < count; i++) {
+      logs.push({
+        x: i * (COLS / count),
+        w: 2.0 + Math.random() * 0.6,
+        color: ['#92400e', '#78350f', '#a16207'][i % 3]
+      });
+    }
+    lanes.push({ type: 'water', logs, safe: false });
+  }
+  
+  homeSlots = [[], [], []];
+}
+
+// ===== MOVEMENT =====
+function handleInput(dx, dy) {
+  if (!gameRunning) return;
+  let nx = player.x + dx, ny = player.y + dy;
+  if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return;
+  
+  // Home slots (top 3 rows)
+  if (ny <= 2 && homeSlots[ny].includes(nx)) {
+    homeSlots[ny] = homeSlots[ny].filter(c => c !== nx);
+    score += 100 * level;
+    spawnParticles(nx * CELL + CELL/2, ny * CELL + CELL/2, '#22c55e', 15);
+    AudioEngine.play('home');
+    player = { x: nx, y: ny };
+    checkWin();
+    return;
+  }
+  
+  player.x = nx;
+  player.y = ny;
+  AudioEngine.play('jump');
+  
+  // Check if reaching home slot (not occupied)
+  if (ny <= 2) {
+    let h = homeSlots[ny];
+    if (!h.includes(nx)) {
+      h.push(nx);
+      score += 100 * level;
+      spawnParticles(nx * CELL + CELL/2, ny * CELL + CELL/2, '#22c55e', 15);
+      AudioEngine.play('home');
+      player = { x: nx, y: ny };
+      checkWin();
+    }
+  }
+}
+
+function checkWin() {
+  const total = homeSlots[0].length + homeSlots[1].length + homeSlots[2].length;
+  if (total >= 5) {
+    level++;
+    score += 500 * level;
+    spawnParticles(player.x * CELL + CELL/2, player.y * CELL + CELL/2, '#fbbf24', 30);
+    AudioEngine.play('levelup');
+    initLanes();
+    player = { x: Math.floor(COLS/2), y: ROWS - 1 };
+    updateUI();
+    showLevelScreen();
+  }
+}
+
+function die() {
+  lives--;
+  spawnParticles(player.x * CELL + CELL/2, player.y * CELL + CELL/2, '#ef4444', 20);
+  AudioEngine.play('die');
+  updateUI();
+  
+  if (lives <= 0) {
+    gameOver();
+    return;
+  }
+  
+  player = { x: Math.floor(COLS/2), y: ROWS - 1 };
+  homeSlots = [[], [], []];
+}
+
+function gameOver() {
+  gameRunning = false;
+  if (score > bestScore) {
+    bestScore = score;
+    localStorage.setItem('frogger_best', bestScore);
+  }
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('gameOverMsg').textContent = score > 1000 ? 'Amazing run! 🌟' : score > 500 ? 'Great job! 👏' : 'Keep trying! 💪';
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+}
+
+function showLevelScreen() {
+  gameRunning = false;
+  document.getElementById('levelScore').textContent = score;
+  document.getElementById('levelScreen').classList.remove('hidden');
+}
+
+function nextLevel() {
+  document.getElementById('levelScreen').classList.add('hidden');
+  gameRunning = true;
+  loop();
+}
+
+function updateUI() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('lives').textContent = lives;
+  document.getElementById('level').textContent = level;
+  document.getElementById('best').textContent = bestScore;
+}
+
+// ===== START GAME =====
+function startGame() {
+  AudioEngine.init();
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('levelScreen').classList.add('hidden');
+  
+  score = 0; lives = 3; level = 1;
+  player = { x: Math.floor(COLS/2), y: ROWS - 1 };
+  particles = [];
+  initLanes();
+  updateUI();
+  gameRunning = true;
+  loop();
+}
+
+function showStart() {
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('startScreen').classList.remove('hidden');
+}
+
+function toggleSound() {
+  AudioEngine.init();
+  const enabled = AudioEngine.toggle();
+  event.target.textContent = enabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+}
+
+// ===== RENDERING =====
+function drawFrog(x, y) {
+  const cx = x * CELL + CELL/2;
+  const cy = y * CELL + CELL/2;
+  const r = CELL/2 - 4;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 2, cy + r - 2, r * 0.8, r * 0.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Body
+  const grad = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, r);
+  grad.addColorStop(0, '#4ade80');
+  grad.addColorStop(1, '#16a34a');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(cx - 7, cy - 6, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 7, cy - 6, 5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Pupils
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(cx - 6, cy - 6, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 8, cy - 6, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Smile
+  ctx.strokeStyle = '#166534';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy + 4, 6, 0.1 * Math.PI, 0.9 * Math.PI);
+  ctx.stroke();
+  
+  // Legs
+  ctx.fillStyle = '#22c55e';
+  [[-1,1],[1,1],[-1,-1],[1,-1]].forEach(([dx, dy]) => {
+    ctx.beginPath();
+    ctx.ellipse(cx + dx * 12, cy + dy * 10, 5, 4, dx * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawVehicle(x, y, w, color, type) {
+  const cx = x * CELL;
+  const cy = y * CELL + 6;
+  const cw = w * CELL - 8;
+  const ch = CELL - 12;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.roundRect(cx + 2, cy + 3, cw, ch, 6);
+  ctx.fill();
+  
+  // Body
+  const grad = ctx.createLinearGradient(cx, cy, cx, cy + ch);
+  grad.addColorStop(0, color);
+  grad.addColorStop(1, shadeColor(color, -30));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(cx, cy, cw, ch, 6);
+  ctx.fill();
+  
+  // Windows
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  const winW = cw * 0.3;
+  ctx.beginPath();
+  ctx.roundRect(cx + cw*0.15, cy + 4, winW, ch - 8, 3);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(cx + cw*0.55, cy + 4, winW, ch - 8, 3);
+  ctx.fill();
+  
+  // Headlights
+  ctx.fillStyle = '#fef08a';
+  ctx.beginPath();
+  ctx.arc(cx + cw - 4, cy + 6, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + cw - 4, cy + ch - 6, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Taillights
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.arc(cx + 4, cy + 6, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 4, cy + ch - 6, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawLog(x, y, w, color) {
+  const cx = x * CELL;
+  const cy = y * CELL + 8;
+  const cw = w * CELL - 4;
+  const ch = CELL - 16;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.roundRect(cx + 2, cy + 3, cw, ch, 10);
+  ctx.fill();
+  
+  // Log body
+  const grad = ctx.createLinearGradient(cx, cy, cx, cy + ch);
+  grad.addColorStop(0, shadeColor(color, 20));
+  grad.addColorStop(0.5, color);
+  grad.addColorStop(1, shadeColor(color, -20));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.roundRect(cx, cy, cw, ch, 10);
+  ctx.fill();
+  
+  // Wood grain
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const ly = cy + 6 + i * (ch / 3);
+    ctx.beginPath();
+    ctx.moveTo(cx + 8, ly);
+    ctx.lineTo(cx + cw - 8, ly);
+    ctx.stroke();
+  }
+}
+
+function drawHomeSlot(x, y, occupied) {
+  const cx = x * CELL + 2;
+  const cy = y * CELL + 2;
+  const cw = CELL - 4;
+  const ch = CELL - 4;
+  
+  ctx.fillStyle = occupied ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.03)';
+  ctx.beginPath();
+  ctx.roundRect(cx, cy, cw, ch, 8);
+  ctx.fill();
+  
+  if (occupied) {
+    ctx.strokeStyle = 'rgba(34,197,94,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(cx, cy, cw, ch, 8);
+    ctx.stroke();
+  }
+}
+
+function drawBackground() {
+  // Sky gradient
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, ROWS * CELL);
+  skyGrad.addColorStop(0, '#1e1b4b');
+  skyGrad.addColorStop(0.3, '#172554');
+  skyGrad.addColorStop(1, '#0f172a');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw lanes
+  for (let r = 0; r < ROWS; r++) {
+    const y = r * CELL;
+    
+    if (r < 3) {
+      // Home area
+      ctx.fillStyle = r % 2 === 0 ? '#1a1a2e' : '#16162a';
+      ctx.fillRect(0, y, canvas.width, CELL);
+      
+      // Home slots
+      for (let c = 0; c < COLS; c++) {
+        drawHomeSlot(c, r, homeSlots[r] && homeSlots[r].includes(c));
+      }
+    }
+    else if (r < 7) {
+      // Road
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, y, canvas.width, CELL);
+      
+      // Road markings
+      ctx.fillStyle = '#2a2a3e';
+      for (let c = 0; c < COLS; c++) {
+        ctx.fillRect(c * CELL + CELL/2 - 1, y, 2, CELL);
+      }
+      
+      // Vehicles
+      const lane = lanes[r - 3];
+      if (lane.type === 'road') {
+        for (let v of lane.vehicles) {
+          let vx = (v.x + lane.speed * gameTime / 1000) % COLS;
+          if (vx < -2) vx += COLS + 2;
+          drawVehicle(vx, r, v.w, v.color, v.type);
+        }
+      }
+    }
+    else {
+      // Water
+      ctx.fillStyle = r < 10 ? '#0c1a3a' : '#0a1628';
+      ctx.fillRect(0, y, canvas.width, CELL);
+      
+      // Water animation
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      for (let i = 0; i < 5; i++) {
+        const wx = ((i * 137 + gameTime * 0.5) % (canvas.width + 40)) - 20;
+        const wy = y + 10 + Math.sin(gameTime * 0.02 + i) * 4;
+        ctx.beginPath();
+        ctx.roundRect(wx, wy, 30, 3, 2);
+        ctx.fill();
+      }
+      
+      // Logs
+      const lane = lanes[r - 7];
+      if (lane.type === 'water') {
+        for (let log of lane.logs) {
+          let lx = (log.x + lane.speed * gameTime / 1000) % COLS;
+          if (lx < -3) lx += COLS + 3;
+          drawLog(lx, r, log.w, log.color);
+        }
+      }
+    }
+  }
+}
+
+function shadeColor(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.max(0, Math.min(255, (num >> 16) + amt));
+  const G = Math.max(0, Math.min(255, (num >> 8 & 0x00FF) + amt));
+  const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
+  return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+}
+
+// ===== MAIN LOOP =====
+function loop() {
+  if (!gameRunning) return;
+  
+  gameTime++;
+  
+  // Draw background
+  drawBackground();
+  
+  // Draw player
+  if (gameRunning) {
+    drawFrog(player.x, player.y);
+  }
+  
+  // Update and draw particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => { p.update(); p.draw(); });
+  
+  // Check collisions
+  if (player.y >= 3 && player.y < 10) {
+    const row = player.y - 3;
+    const lane = lanes[row];
+    
+    if (lane.type === 'road') {
+      for (let v of lane.vehicles) {
+        let vx = (v.x + lane.speed * gameTime / 1000) % COLS;
+        if (vx < -2) vx += COLS + 2;
+        if (player.x >= vx - 0.5 && player.x < vx + v.w - 0.5) {
+          die();
+          return;
+        }
+      }
+    }
+    
+    if (lane.type === 'water') {
+      let onLog = false;
+      for (let log of lane.logs) {
+        let lx = (log.x + lane.speed * gameTime / 1000) % COLS;
+        if (lx < -3) lx += COLS + 3;
+        if (player.x >= lx - 0.3 && player.x < lx + log.w - 0.3) {
+          onLog = true;
+          player.x = lx + log.w / 2 - 0.5;
+          if (player.x < 0 || player.x >= COLS) {
+            AudioEngine.play('splash');
+            die();
+            return;
+          }
+        }
+      }
+      if (!onLog && !lane.safe) {
+        AudioEngine.play('splash');
+        die();
+        return;
+      }
+    }
+  }
+  
+  // Keyboard input
+  if (keys['ArrowUp'] || keys['w']) { handleInput(0, -1); keys['ArrowUp'] = keys['w'] = false; }
+  if (keys['ArrowDown'] || keys['s']) { handleInput(0, 1); keys['ArrowDown'] = keys['s'] = false; }
+  if (keys['ArrowLeft'] || keys['a']) { handleInput(-1, 0); keys['ArrowLeft'] = keys['a'] = false; }
+  if (keys['ArrowRight'] || keys['d']) { handleInput(1, 0); keys['ArrowRight'] = keys['d'] = false; }
+  
+  animFrame = requestAnimationFrame(loop);
+}
+
+// Initialize
+player = { x: Math.floor(COLS/2), y: ROWS - 1 };
+initLanes();
+updateUI();
+drawBackground();
+</script>
+</body>
+</html>
