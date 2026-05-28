@@ -1,0 +1,11 @@
+services:
+  game-hub:
+    build: .
+    container_name: game-hub
+    ports:
+      - "8082:8080"
+    volumes:
+      - C:/Users/richa/AppData/Local/hermes/game-hub/games:/app/games
+    restart: unless-stopped
+    environment:
+      - GAMES_DIR=/app/games
