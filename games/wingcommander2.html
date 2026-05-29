@@ -153,10 +153,10 @@ const SECONDARY_WEAPONS = {
 
 // ---- Enemy Definitions ----
 const ENEMY_TYPES = {
-  gorkon: { name: 'Gorkon Scout', hull: 30, speed: 1.8, size: 14, color: '#ff4444', score: 100, fireRate: 90, damage: 8 },
-  kzeran: { name: 'Kzeran Heavy', hull: 60, speed: 1.0, size: 20, color: '#ff8800', score: 200, fireRate: 60, damage: 12 },
-  torath: { name: 'Torath Interceptor', hull: 25, speed: 3.0, size: 12, color: '#ff00ff', score: 150, fireRate: 50, damage: 10 },
-  korath: { name: 'Korath Cruiser', hull: 100, speed: 0.7, size: 26, color: '#ffff00', score: 350, fireRate: 45, damage: 15 },
+  gorkon: { name: 'Gorkon Scout', hull: 30, speed: 1.8, size: 14, color: '#ff4444', score: 100, fireRate: 90, damage: 12 },
+  kzeran: { name: 'Kzeran Heavy', hull: 60, speed: 1.0, size: 20, color: '#ff8800', score: 200, fireRate: 60, damage: 18 },
+  torath: { name: 'Torath Interceptor', hull: 25, speed: 3.0, size: 12, color: '#ff00ff', score: 150, fireRate: 50, damage: 15 },
+  korath: { name: 'Korath Cruiser', hull: 100, speed: 0.7, size: 26, color: '#ffff00', score: 350, fireRate: 45, damage: 22 },
 };
 
 // ---- Boss Definitions ----
@@ -701,7 +701,7 @@ function update() {
 
   game.afterburner = !!(keys['ShiftLeft'] || keys['ShiftRight'] || touchAfterburner);
   const speedMult = game.afterburner ? 1.6 : 1.0;
-  const speed = 10 * speedMult;
+  const speed = 25 * speedMult;
 
   // Apply movement
   p.vx += mx * 0.8;
@@ -744,7 +744,7 @@ function update() {
   }
 
   // ---- Invincibility ----
-  if (p.invincibleTimer > 0) p.invincibleTimer--;
+  if (game.invincibleTimer > 0) game.invincibleTimer--;
 
   // ---- Speed boost ----
   if (game.powerUpTimers.speed) {
@@ -760,28 +760,19 @@ function update() {
     game.waveDelay--;
     if (game.waveDelay === 60) showMessage('RELOADING WEAPONS...');
     if (game.waveDelay === 0) {
-      // After boss wave completes, wait for player to press Enter
+      // Boss wave cleared — auto-advance after 4s
       if (game.bossWave && game.waveEnemies >= game.waveTotal) {
-        game.waveDelay = 240; // 4s delay after boss
-        showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
+        showMessage('WAVE ' + game.wave + ' CLEAR');
+        nextWave();
+        return;
       }
-      // Start spawning enemies for current wave (regular waves)
-      if (!game.bossWave) {
-        const spawnCount = Math.min(2 + Math.floor(game.wave / 3), 4);
-        for (let i = 0; i < spawnCount; i++) {
-          spawnEnemy();
-        }
+      // Regular wave cleared — start spawning next wave
+      const spawnCount = Math.min(2 + Math.floor(game.wave / 3), 4);
+      for (let i = 0; i < spawnCount; i++) {
+        spawnEnemy();
       }
     }
     return; // Skip rest during delay
-  }
-
-  // Manual wave advancement — press Enter to start next wave
-  if (keys['Enter'] || keys['NumpadEnter']) {
-    keys['Enter'] = false;
-    keys['NumpadEnter'] = false;
-    nextWave();
-    return;
   }
 
   // ---- Spawn enemies during wave ----
@@ -826,17 +817,24 @@ function update() {
     }
 
     // Collision with player
-    if (p.invincibleTimer <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < e.size + p.size) {
-      const dmg = Math.ceil((10 + e.size * 0.3));
+    if (game.invincibleTimer <= 0 && Math.hypot(e.x - p.x, e.y - p.y) < e.size + p.size) {
+      const dmg = Math.ceil(20 + e.size * 0.5);
       if (p.shield > 0) { p.shield = Math.max(0, p.shield - dmg); sfxShield(); }
       else { p.hull -= dmg; sfxHit(); }
-      p.invincibleTimer = 30;
-      game.collisionFlash = 15;
-      game.shakeTime = 10;
-      // Bounce
-      e.vx = (e.x > p.x ? 1 : -1) * 4;
-      e.vy = -3;
-      spawnExplosion((e.x + p.x) / 2, (e.y + p.y) / 2, 15, '#ff4444');
+      game.invincibleTimer = 40;
+      game.collisionFlash = 20;
+      game.shakeTime = 15;
+      // Bounce both ways
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      e.vx = nx * 6;
+      e.vy = ny * 6 - 2;
+      p.vx += nx * 5;
+      p.vy += ny * 5;
+      spawnExplosion((e.x + p.x) / 2, (e.y + p.y) / 2, 20, '#ff4444');
     }
   }
 
@@ -926,11 +924,11 @@ function update() {
     }
 
     // Boss collision with player
-    if (p.invincibleTimer <= 0 && !boss.charging && Math.hypot(boss.x - p.x, boss.y - p.y) < boss.size + p.size) {
+    if (game.invincibleTimer <= 0 && !boss.charging && Math.hypot(boss.x - p.x, boss.y - p.y) < boss.size + p.size) {
       const dmg = Math.ceil((20 + boss.size * 0.4) * (1 + boss.phase * 0.15));
       if (p.shield > 0) { p.shield = Math.max(0, p.shield - dmg); sfxShield(); }
       else { p.hull -= dmg; sfxHit(); }
-      p.invincibleTimer = 45;
+      game.invincibleTimer = 45;
       game.collisionFlash = 20;
       game.shakeTime = 15;
       spawnExplosion((p.x + boss.x) / 2, (p.y + boss.y) / 2, 30, boss.color);
@@ -1071,8 +1069,8 @@ function update() {
 
             // Check wave complete
             if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
-              game.waveDelay = 180; // 3s delay, wait for Enter
-              showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
+              game.waveDelay = 180; // 3s delay
+              showMessage('WAVE ' + game.wave + ' CLEAR');
               // Heal between waves
               p.hull = Math.min(p.maxHull, p.hull + 15);
               p.shield = Math.min(p.maxShield, p.shield + 10);
@@ -1165,8 +1163,8 @@ function update() {
 
           if (game.bossWave && game.bosses.length === 0 && game.waveEnemies >= game.waveTotal) {
             game.bossWave = false;
-            game.waveDelay = 240; // 4s delay after boss, wait for Enter
-            showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
+            game.waveDelay = 240; // 4s delay
+            showMessage('WAVE ' + game.wave + ' CLEAR');
             sfxWave();
           }
         }
@@ -1195,8 +1193,8 @@ function update() {
           if (Math.random() < 0.35) spawnPowerUp(e.x, e.y);
           game.enemies.splice(ei, 1);
           if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
-            game.waveDelay = 180; // 3s delay, wait for Enter
-            showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
+            game.waveDelay = 180; // 3s delay
+            showMessage('WAVE ' + game.wave + ' CLEAR');
             p.hull = Math.min(p.maxHull, p.hull + 15);
             p.shield = Math.min(p.maxShield, p.shield + 10);
             sfxWave();
@@ -1221,11 +1219,11 @@ function update() {
     }
 
     // Hit player
-    if (p.invincibleTimer <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < p.size + b.size) {
+    if (game.invincibleTimer <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < p.size + b.size) {
       const dmg = b.damage;
       if (p.shield > 0) { p.shield = Math.max(0, p.shield - dmg); sfxShield(); }
       else { p.hull -= dmg; sfxHit(); }
-      p.invincibleTimer = 20;
+      game.invincibleTimer = 20;
       game.shakeTime = 6;
       spawnExplosion(b.x, b.y, 8, '#ff4444');
       game.enemyBullets.splice(i, 1);
@@ -1287,10 +1285,10 @@ function update() {
     }
 
     // Hit player
-    if (p.invincibleTimer <= 0 && Math.hypot(m.x - p.x, m.y - p.y) < p.size + m.size) {
+    if (game.invincibleTimer <= 0 && Math.hypot(m.x - p.x, m.y - p.y) < p.size + m.size) {
       if (p.shield > 0) { p.shield = Math.max(0, p.shield - m.damage); sfxShield(); }
       else { p.hull -= m.damage; sfxHit(); }
-      p.invincibleTimer = 25;
+      game.invincibleTimer = 25;
       game.shakeTime = 8;
       spawnExplosion(m.x, m.y, 10, '#ff4444');
       game.enemyMissiles.splice(i, 1);
@@ -1660,7 +1658,7 @@ function drawGameElements() {
   // Player
   const p = game.player;
   if (p && game.state === 'playing') {
-    if (p.invincibleTimer > 0 && Math.floor(p.invincibleTimer / 3) % 2 === 0) {
+    if (game.invincibleTimer > 0 && Math.floor(game.invincibleTimer / 3) % 2 === 0) {
       ctx.globalAlpha = 0.4;
     }
     drawPlayerShip(p);
