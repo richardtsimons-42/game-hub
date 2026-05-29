@@ -117,7 +117,7 @@ let game, stars = [], nebulae = [];
 function initGame() {
   game = {
     state: 'menu', // menu, playing, gameover
-    score: 0, wave: 0, kills: 0,
+    score: 0, wave: 0, kills: 0, frameCount: 0,
     waveDelay: 0, waveEnemies: 0, waveTotal: 0,
     bossWave: false, bosses: [],
     player: null, enemies: [], bullets: [], missiles: [], enemyBullets: [], enemyMissiles: [],
@@ -371,6 +371,7 @@ function spawnEnemy() {
     strafeTimer: 60 + Math.random() * 60,
     empDisabled: 0,
     phase: 0,
+    birthFrame: game.frameCount,
   });
 }
 
@@ -677,6 +678,7 @@ function nextWave() {
 // ---- Update ----
 function update() {
   if (game.state !== 'playing') return;
+  game.frameCount++;
   const p = game.player;
   if (!p) return;
 
@@ -760,24 +762,24 @@ function update() {
     game.waveDelay--;
     if (game.waveDelay === 60) showMessage('RELOADING WEAPONS...');
     if (game.waveDelay === 0) {
-      // Boss wave cleared — auto-advance after 4s
-      if (game.bossWave && game.waveEnemies >= game.waveTotal) {
+      // Only advance if wave is actually complete
+      const waveComplete = !game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0;
+      const bossComplete = game.bossWave && game.waveEnemies >= game.waveTotal && game.bosses.length === 0;
+      
+      if (waveComplete || bossComplete) {
         showMessage('WAVE ' + game.wave + ' CLEAR');
         nextWave();
-        return;
-      }
-      // Regular wave cleared — start spawning next wave
-      const spawnCount = Math.min(2 + Math.floor(game.wave / 3), 4);
-      for (let i = 0; i < spawnCount; i++) {
-        spawnEnemy();
+      } else {
+        // Wave not complete — extend delay and keep trying
+        game.waveDelay = 180;
       }
     }
-    return; // Skip rest during delay
   }
 
   // ---- Spawn enemies during wave ----
-  if (!game.bossWave && game.enemies.length < 6 && game.waveEnemies < game.waveTotal) {
-    if (Math.random() < 0.04 + game.wave * 0.005) {
+  const maxOnScreen = 6 + game.wave;
+  if (!game.bossWave && game.enemies.length < maxOnScreen && game.waveEnemies < game.waveTotal) {
+    if (Math.random() < 0.08 + game.wave * 0.01) {
       spawnEnemy();
     }
   }
@@ -801,6 +803,20 @@ function update() {
     if (e.x < e.size + 10 || e.x > W - e.size - 10) e.vx *= -1;
     e.x = Math.max(e.size + 10, Math.min(W - e.size - 10, e.x));
 
+    // Remove if on screen too long (prevents stuck enemies blocking wave completion)
+    if (game.frameCount - e.birthFrame > 120) {
+      game.enemies.splice(i, 1);
+      game.waveEnemies++;
+      if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
+        game.waveDelay = 180;
+        showMessage('WAVE ' + game.wave + ' CLEAR');
+        p.hull = Math.min(p.maxHull, p.hull + 15);
+        p.shield = Math.min(p.maxShield, p.shield + 10);
+        sfxWave();
+      }
+      continue;
+    }
+
     // Fire at player
     e.fireTimer--;
     if (e.fireTimer <= 0) {
@@ -813,6 +829,14 @@ function update() {
     if (e.y > H + 50) {
       game.enemies.splice(i, 1);
       game.waveEnemies++;
+      // Check wave complete
+      if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
+        game.waveDelay = 180; // 3s delay
+        showMessage('WAVE ' + game.wave + ' CLEAR');
+        p.hull = Math.min(p.maxHull, p.hull + 15);
+        p.shield = Math.min(p.maxShield, p.shield + 10);
+        sfxWave();
+      }
       continue;
     }
 
@@ -2024,9 +2048,10 @@ function drawHUD() {
   y += 16;
 
   // WAVE
+  const remaining = Math.max(0, game.waveTotal - game.waveEnemies);
   ctx.fillStyle = '#aaa';
   ctx.font = '10px Courier New';
-  ctx.fillText('WAVE: ' + game.wave, pad, y + 8);
+  ctx.fillText('WAVE: ' + game.wave + ' [' + remaining + ']', pad, y + 8);
 
   // KILLS
   ctx.fillText('KILLS: ' + game.kills, pad + 80, y + 8);
