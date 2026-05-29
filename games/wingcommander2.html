@@ -760,8 +760,8 @@ function update() {
     game.waveDelay--;
     if (game.waveDelay === 60) showMessage('RELOADING WEAPONS...');
     if (game.waveDelay === 0) {
-      // If previous wave completed, start a new one
-      if (game.waveEnemies >= game.waveTotal) {
+      // Only advance to next wave after a non-boss wave completes
+      if (!game.bossWave && game.waveEnemies >= game.waveTotal) {
         nextWave();
         return;
       }
