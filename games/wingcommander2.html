@@ -140,7 +140,7 @@ function initGame() {
 
 // ---- Weapon Definitions ----
 const PRIMARY_WEAPONS = {
-  0: { name: 'LASER', color: '#00ff44', fireRate: 3, damage: 14, bulletSpeed: 22, bulletSize: 2, sound: sfxLaser, beamWidth: 3 },
+  0: { name: 'LASER', color: '#00ff44', fireRate: 5, damage: 14, bulletSpeed: 22, bulletSize: 2, sound: sfxLaser, beamWidth: 3 },
 };
 
 const SECONDARY_WEAPONS = {
@@ -701,7 +701,7 @@ function update() {
 
   game.afterburner = !!(keys['ShiftLeft'] || keys['ShiftRight'] || touchAfterburner);
   const speedMult = game.afterburner ? 1.6 : 1.0;
-  const speed = 7 * speedMult;
+  const speed = 9 * speedMult;
 
   // Apply movement
   p.vx += mx * 0.8;
