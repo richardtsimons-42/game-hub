@@ -360,7 +360,7 @@ function spawnEnemy() {
     type: chosen,
     hull: et.hull + Math.floor(game.wave * 2),
     maxHull: et.hull + Math.floor(game.wave * 2),
-    speed: et.speed * 1.3 * (0.9 + Math.random() * 0.2),
+    speed: et.speed * 2 * (0.9 + Math.random() * 0.2),
     size: et.size,
     color: et.color,
     score: et.score,
@@ -701,7 +701,7 @@ function update() {
 
   game.afterburner = !!(keys['ShiftLeft'] || keys['ShiftRight'] || touchAfterburner);
   const speedMult = game.afterburner ? 1.6 : 1.0;
-  const speed = 9 * speedMult;
+  const speed = 10 * speedMult;
 
   // Apply movement
   p.vx += mx * 0.8;
@@ -760,12 +760,12 @@ function update() {
     game.waveDelay--;
     if (game.waveDelay === 60) showMessage('RELOADING WEAPONS...');
     if (game.waveDelay === 0) {
-      // Only advance to next wave after a non-boss wave completes
-      if (!game.bossWave && game.waveEnemies >= game.waveTotal) {
-        nextWave();
-        return;
+      // After boss wave completes, wait for player to press Enter
+      if (game.bossWave && game.waveEnemies >= game.waveTotal) {
+        game.waveDelay = 240; // 4s delay after boss
+        showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
       }
-      // Start spawning enemies for current wave
+      // Start spawning enemies for current wave (regular waves)
       if (!game.bossWave) {
         const spawnCount = Math.min(2 + Math.floor(game.wave / 3), 4);
         for (let i = 0; i < spawnCount; i++) {
@@ -774,6 +774,14 @@ function update() {
       }
     }
     return; // Skip rest during delay
+  }
+
+  // Manual wave advancement — press Enter to start next wave
+  if (keys['Enter'] || keys['NumpadEnter']) {
+    keys['Enter'] = false;
+    keys['NumpadEnter'] = false;
+    nextWave();
+    return;
   }
 
   // ---- Spawn enemies during wave ----
@@ -1063,8 +1071,8 @@ function update() {
 
             // Check wave complete
             if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
-              game.waveDelay = 120;
-              showMessage('WAVE ' + game.wave + ' CLEAR — RELOADING');
+              game.waveDelay = 180; // 3s delay, wait for Enter
+              showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
               // Heal between waves
               p.hull = Math.min(p.maxHull, p.hull + 15);
               p.shield = Math.min(p.maxShield, p.shield + 10);
@@ -1157,8 +1165,8 @@ function update() {
 
           if (game.bossWave && game.bosses.length === 0 && game.waveEnemies >= game.waveTotal) {
             game.bossWave = false;
-            game.waveDelay = 180;
-            showMessage('WAVE ' + game.wave + ' CLEAR — RELOADING');
+            game.waveDelay = 240; // 4s delay after boss, wait for Enter
+            showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
             sfxWave();
           }
         }
@@ -1187,8 +1195,8 @@ function update() {
           if (Math.random() < 0.35) spawnPowerUp(e.x, e.y);
           game.enemies.splice(ei, 1);
           if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
-            game.waveDelay = 120;
-            showMessage('WAVE ' + game.wave + ' CLEAR — RELOADING');
+            game.waveDelay = 180; // 3s delay, wait for Enter
+            showMessage('WAVE ' + game.wave + ' CLEAR — PRESS ENTER FOR NEXT WAVE');
             p.hull = Math.min(p.maxHull, p.hull + 15);
             p.shield = Math.min(p.maxShield, p.shield + 10);
             sfxWave();
