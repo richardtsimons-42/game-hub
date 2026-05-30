@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover">
 <title>Wing Commander 2</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,7 +13,22 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touc
 #controls { position: fixed; bottom: 0; left: 0; right: 0; height: 160px; pointer-events: none; z-index: 10; display: none; }
 @media (max-width: 768px) { #controls { display: block; } }
 
-#joystick-zone { position: absolute; left: 15px; bottom: 15px; width: 130px; height: 130px; pointer-events: auto; }
+/* Fullscreen button - only show on desktop */
+#fullscreen-btn { position: fixed; top: 10px; right: 10px; z-index: 100; width: 44px; height: 44px; background: rgba(0,255,128,0.15); border: 1px solid rgba(0,255,128,0.4); border-radius: 8px; color: #0f8; font-size: 20px; cursor: pointer; display: none; align-items: center; justify-content: center; pointer-events: auto; }
+@media (min-width: 769px) { #fullscreen-btn { display: flex; } }
+
+/* Fullscreen styles - hide browser UI */
+:fullscreen #gameCanvas, :-webkit-full-screen #gameCanvas { width: 100vw; height: 100vh; }
+:fullscreen body, :-webkit-full-screen body { margin: 0; overflow: hidden; }
+:fullscreen #fullscreen-btn, :-webkit-full-screen #fullscreen-btn { top: 10px; right: 10px; }
+
+/* Safe area for notched phones */
+@media (max-width: 768px) {
+  #controls { padding-bottom: env(safe-area-inset-bottom, 0); }
+  #joystick-zone { bottom: calc(40px + env(safe-area-inset-bottom, 0)); }
+}
+
+#joystick-zone { position: absolute; left: 15px; bottom: 40px; width: 130px; height: 130px; pointer-events: auto; }
 #joystick-base { width: 130px; height: 130px; border-radius: 50%; background: rgba(0,255,128,0.08); border: 2px solid rgba(0,255,128,0.25); position: relative; }
 #joystick-thumb { width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle, rgba(0,255,128,0.6), rgba(0,255,128,0.2)); border: 2px solid rgba(0,255,128,0.5); position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); transition: none; }
 
@@ -37,6 +52,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touc
 <canvas id="gameCanvas"></canvas>
 
 <div id="controls">
+  <button id="fullscreen-btn" title="Fullscreen">⛶</button>
   <div id="joystick-zone">
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
   </div>
@@ -48,7 +64,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touc
   </div>
 </div>
 
-<div id="desktop-hint">WASD/Arrows: Move | Space: Fire | S: Switch Secondary | F: Fire Secondary | Shift: Afterburner</div>
+<div id="desktop-hint">WASD/Arrows: Move | Space: Fire | Q: Switch Secondary | F: Fire Secondary | Shift: Afterburner</div>
 
 <script>
 // ============================================================
@@ -60,8 +76,13 @@ const ctx = canvas.getContext('2d');
 let W, H;
 
 function resize() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+  if (window.visualViewport) {
+    W = canvas.width = window.visualViewport.width;
+    H = canvas.height = window.visualViewport.height;
+  } else {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
 }
 resize();
 window.addEventListener('resize', resize);
@@ -140,15 +161,16 @@ function initGame() {
 
 // ---- Weapon Definitions ----
 const PRIMARY_WEAPONS = {
-  0: { name: 'LASER', color: '#00ff44', fireRate: 5, damage: 14, bulletSpeed: 22, bulletSize: 2, sound: sfxLaser, beamWidth: 3 },
+  0: { name: 'LASER', color: '#00ff44', fireRate: 8, damage: 14, bulletSpeed: 22, bulletSize: 2, sound: sfxLaser, beamWidth: 3 },
 };
 
 const SECONDARY_WEAPONS = {
-  1: { name: 'PLASMA', color: '#ff44ff', fireRate: 18, damage: 35, bulletSpeed: 7, bulletSize: 5, sound: sfxPlasma, spread: 3, beamWidth: 4 },
-  2: { name: 'MISSILE', color: '#ffaa00', fireRate: 25, damage: 25, bulletSpeed: 0, bulletSize: 4, sound: sfxMissile, homing: true, maxSpeed: 9, fuel: 90, trailColor: 'rgba(255,170,0,0.4)' },
-  3: { name: 'EMP', color: '#00ccff', fireRate: 40, damage: 15, bulletSpeed: 6, bulletSize: 6, sound: sfxEMP, empRadius: 80, empDuration: 60, beamWidth: 6 },
-  4: { name: 'RAILGUN', color: '#ffffff', fireRate: 35, damage: 80, bulletSpeed: 18, bulletSize: 3, sound: sfxRailgun, piercing: true, beamWidth: 3 },
-  5: { name: 'ION', color: '#aaff00', fireRate: 20, damage: 20, bulletSpeed: 8, bulletSize: 4, sound: sfxIon, chainCount: 3, chainRange: 120, beamWidth: 3 },
+  0: { name: 'LASER', color: '#00ff44', fireRate: 8, damage: 14, bulletSpeed: 22, bulletSize: 2, sound: sfxLaser, beamWidth: 3 },
+  1: { name: 'PLASMA', color: '#ff44ff', fireRate: 28, damage: 35, bulletSpeed: 7, bulletSize: 5, sound: sfxPlasma, spread: 3, beamWidth: 4 },
+  2: { name: 'MISSILE', color: '#ffaa00', fireRate: 40, damage: 25, bulletSpeed: 0, bulletSize: 4, sound: sfxMissile, homing: true, maxSpeed: 9, fuel: 90, trailColor: 'rgba(255,170,0,0.4)' },
+  3: { name: 'EMP', color: '#00ccff', fireRate: 60, damage: 15, bulletSpeed: 6, bulletSize: 6, sound: sfxEMP, empRadius: 80, empDuration: 60, beamWidth: 6 },
+  4: { name: 'RAILGUN', color: '#ffffff', fireRate: 50, damage: 80, bulletSpeed: 18, bulletSize: 3, sound: sfxRailgun, piercing: true, beamWidth: 3 },
+  5: { name: 'ION', color: '#aaff00', fireRate: 30, damage: 20, bulletSpeed: 8, bulletSize: 4, sound: sfxIon, chainCount: 3, chainRange: 120, beamWidth: 3 },
 };
 
 // ---- Enemy Definitions ----
@@ -647,6 +669,12 @@ function showMessage(text) {
 
 // ---- Start Game ----
 function startGame() {
+  // Auto-fullscreen on mobile
+  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  }
   initGame();
   initStarfield();
   game.state = 'playing';
@@ -703,7 +731,7 @@ function update() {
 
   game.afterburner = !!(keys['ShiftLeft'] || keys['ShiftRight'] || touchAfterburner);
   const speedMult = game.afterburner ? 1.6 : 1.0;
-  const speed = 25 * speedMult;
+  const speed = 45 * speedMult;
 
   // Apply movement
   p.vx += mx * 0.8;
@@ -733,7 +761,7 @@ function update() {
 
   const primaryFire = keys['Space'] || touchFire;
   const secondaryFire = keys['KeyF'] || touchSec;
-  const switchSec = keys['KeyS'] || touchSwitch;
+  const switchSec = keys['KeyQ'] || touchSwitch;
 
   if (primaryFire) firePlayerBullet();
   if (secondaryFire) fireSecondary();
@@ -804,7 +832,7 @@ function update() {
     e.x = Math.max(e.size + 10, Math.min(W - e.size - 10, e.x));
 
     // Remove if on screen too long (prevents stuck enemies blocking wave completion)
-    if (game.frameCount - e.birthFrame > 120) {
+    if (game.frameCount - e.birthFrame > 600) {
       game.enemies.splice(i, 1);
       game.waveEnemies++;
       if (!game.bossWave && game.waveEnemies >= game.waveTotal && game.enemies.length === 0) {
@@ -2182,7 +2210,7 @@ function drawMenu() {
   const isMobile = window.innerWidth <= 768;
   if (isMobile) {
     ctx.fillText('Touch: Joystick to move, FIRE to shoot', W / 2, H * 0.7);
-    ctx.fillText('SEC to switch weapons, ALT to fire secondary', W / 2, H * 0.74);
+    ctx.fillText('SEC to fire secondary, ALT to switch weapons', W / 2, H * 0.74);
   } else {
     ctx.fillText('WASD/Arrows: Move | Space: Fire | S: Switch Secondary', W / 2, H * 0.7);
     ctx.fillText('F: Fire Secondary | Shift: Afterburner', W / 2, H * 0.74);
@@ -2303,16 +2331,16 @@ btnFire.addEventListener('touchstart', e => { e.preventDefault(); touchFire = tr
 btnFire.addEventListener('touchend', e => { touchFire = false; btnFire.classList.remove('active'); });
 btnFire.addEventListener('touchcancel', e => { touchFire = false; btnFire.classList.remove('active'); });
 
-btnSec.addEventListener('touchstart', e => {
+btnSec.addEventListener('touchstart', e => { e.preventDefault(); touchSec = true; btnSec.classList.add('active'); }, { passive: false });
+btnSec.addEventListener('touchend', e => { touchSec = false; btnSec.classList.remove('active'); });
+btnSec.addEventListener('touchcancel', e => { touchSec = false; btnSec.classList.remove('active'); });
+
+btnAlt.addEventListener('touchstart', e => {
   e.preventDefault();
   touchSwitch = true;
-  btnSec.classList.add('active');
-  setTimeout(() => { touchSwitch = false; btnSec.classList.remove('active'); }, 100);
+  btnAlt.classList.add('active');
+  setTimeout(() => { touchSwitch = false; btnAlt.classList.remove('active'); }, 100);
 }, { passive: false });
-
-btnAlt.addEventListener('touchstart', e => { e.preventDefault(); touchSec = true; btnAlt.classList.add('active'); }, { passive: false });
-btnAlt.addEventListener('touchend', e => { touchSec = false; btnAlt.classList.remove('active'); });
-btnAlt.addEventListener('touchcancel', e => { touchSec = false; btnAlt.classList.remove('active'); });
 
 // Click/tap for menu and game over
 canvas.addEventListener('click', e => {
@@ -2335,6 +2363,17 @@ function gameLoop() {
 initGame();
 initStarfield();
 gameLoop();
+
+// ---- Fullscreen ----
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+fullscreenBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const el = document.documentElement;
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+});
 </script>
 </body>
 </html>
